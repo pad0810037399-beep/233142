@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pad1 News Portal - Developer Edition</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --green: #238636; --blue: #58a6ff; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; }
+        nav { background: var(--card); padding: 15px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .container { max-width: 500px; margin: auto; padding: 15px; }
+        .box { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #30363d; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        input, textarea { width: 100%; padding: 12px; margin: 8px 0; background: var(--bg); border: 1px solid #30363d; color: white; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.3s; }
+        .btn-green { background: var(--green); color: white; }
+        .btn-green:hover { background: #2ea043; }
+        .btn-outline { background: transparent; border: 1px solid var(--blue); color: var(--blue); margin-top: 10px; }
+        .hidden { display: none; }
+        .badge { background: #233142; color: var(--blue); padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <strong onclick="showPage('home')" style="cursor:pointer; color: var(--blue);">PAD1 SYSTEM</strong>
+    <div>
+        <span onclick="showPage('admin')" style="cursor:pointer; margin-right:15px; font-size: 14px;">🛠 Admin</span>
+        <span onclick="showPage('setting')" style="cursor:pointer; font-size: 14px;">⚙️ Setting</span>
+    </div>
+</nav>
+
+<div class="container">
+    <section id="page-home">
+        <h2 style="display: flex; align-items: center; gap: 10px;">📰 ข่าวสารล่าสุด <span class="badge">Live</span></h2>
+        <div id="display-area">กำลังดึงข้อมูล...</div>
+    </section>
+
+    <section id="page-admin" class="hidden">
+        <div class="box">
+            <h3 style="color: var(--green); margin-top: 0;">📝 เขียนโพสต์ใหม่ (คุณพัด)</h3>
+            <input type="password" id="admin-pass" placeholder="ใส่รหัสแอดมิน (2222)">
+            <input type="text" id="post-title" placeholder="หัวข้อข่าว">
+            <textarea id="post-content" rows="5" placeholder="ใส่เนื้อหาข่าวที่คุณพัดต้องการสื่อสาร..."></textarea>
+            <button class="btn btn-green" onclick="publishPost()">ยืนยันการโพสต์ลงเว็บ</button>
+            <p style="font-size: 12px; color: #8b949e; margin-top: 10px; text-align: center;">เฉพาะแอดมิน Pad เท่านั้นที่มีสิทธิ์โพสต์</p>
+        </div>
+    </section>
+
+    <section id="page-setting" class="hidden">
+        <h2 style="margin-top: 0;">⚙️ การตั้งค่าบัญชี</h2>
+        <div class="box" id="auth-status">
+            <p>สถานะ: <span style="color: #8b949e;">ยังไม่ได้เข้าสู่ระบบ</span></p>
+            <button class="btn btn-outline" style="background: white; color: black; border: none;" onclick="loginWithGoogle()">
+                <img src="https://www.google.com/favicon.ico" style="width:15px; vertical-align:middle; margin-right:10px;"> เข้าสู่ระบบด้วย Google
+            </button>
+            <hr style="border: 0.1px solid #333; margin: 20px 0;">
+            <p style="font-size: 14px;">สมัครรับข่าวสารผ่านอีเมล</p>
+            <input type="email" id="sub-email" placeholder="ชื่ออีเมลของคุณ">
+            <button class="btn btn-green" onclick="alert('ระบบกำลังเตรียมส่งรหัสยืนยัน...')">ขอรหัสยืนยัน (OTP)</button>
+        </div>
+    </section>
+</div>
+
+<script>
+    // --- รหัสเชื่อมต่อ Firebase ของคุณพัด (ใส่ให้แล้วครับ) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyAimYL0kh55YCivX1emXUFkx2rxVT19dcY",
+        authDomain: "pad1-b229b.firebaseapp.com",
+        projectId: "pad1-b229b",
+        storageBucket: "pad1-b229b.firebasestorage.app",
+        messagingSenderId: "28477080178",
+        appId: "1:28477080178:web:ed52e6b73128104e5738eb",
+        measurementId: "G-112GW2P71N"
+    };
+    // --------------------------------------------------
+
+    // เริ่มต้นระบบ Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    // ฟังก์ชันสลับหน้า
+    function showPage(id) {
+        document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+        document.getElementById('page-' + id).classList.remove('hidden');
+    }
+
+    // ฟังก์ชันโพสต์ข่าว (ใช้รหัส 2222)
+    function publishPost() {
+        const pass = document.getElementById('admin-pass').value;
+        const title = document.getElementById('post-title').value;
+        const content = document.getElementById('post-content').value;
+
+        if (pass === "2222") { // รหัสที่คุณพัดสั่งไว้
+            if (title && content) {
+                const posts = JSON.parse(localStorage.getItem('pad1_news') || "[]");
+                posts.unshift({ title, content, time: new Date().toLocaleString() });
+                localStorage.setItem('pad1_news', JSON.stringify(posts));
+                alert("แอดมินพัดโพสต์ข่าวสำเร็จ!");
+                document.getElementById('admin-pass').value = "";
+                document.getElementById('post-title').value = "";
+                document.getElementById('post-content').value = "";
+                renderPosts();
+                showPage('home');
+            } else {
+                alert("กรุณาใส่หัวข้อและเนื้อหาด้วยครับ");
+            }
+        } else {
+            alert("รหัสผ่านแอดมินไม่ถูกต้องครับคุณพัด!");
+        }
+    }
+
+    // ฟังก์ชันแสดงผลข่าว
+    function renderPosts() {
+        const posts = JSON.parse(localStorage.getItem('pad1_news') || "[]");
+        const area = document.getElementById('display-area');
+        area.innerHTML = posts.map(p => `
+            <div class="box" style="border-left: 5px solid var(--green);">
+                <h3 style="margin: 0 0 10px 0; color: var(--blue);">${p.title}</h3>
+                <p style="margin: 0; line-height: 1.5;">${p.content}</p>
+                <div style="margin-top: 15px; font-size: 11px; color: #8b949e; text-align: right;">🕒 ${p.time}</div>
+            </div>
+        `).join('') || '<div class="box" style="text-align:center;">ยังไม่มีข่าวสารในระบบ</div>';
+    }
+
+    // ระบบ Login Google (เบื้องต้น)
+    function loginWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider)
+            .then((result) => alert("สวัสดีครับคุณ " + result.user.displayName))
+            .catch((error) => alert("เกิดข้อผิดพลาด: " + error.message));
+    }
+
+    // โหลดข้อมูลเมื่อเปิดเว็บ
+    window.onload = renderPosts;
+</script>
+
+</body>
+</html>
